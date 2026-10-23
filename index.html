@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Operations Spending Tracker</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase Compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- Navigation Header -->
+  <header class="bg-slate-900 border-b border-slate-800 py-3.5 px-4 sm:px-8 flex justify-between items-center shadow-lg">
+    <div class="flex items-center gap-2">
+      <div class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></div>
+      <h1 class="text-lg sm:text-xl font-black tracking-wider text-amber-400">⚡ OPS TRACKER</h1>
+    </div>
+    <div class="flex gap-2">
+      <button id="nav-player-btn" onclick="showView('player')" class="px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-amber-500 text-slate-950 shadow transition">Player View</button>
+      <button id="nav-gm-btn" onclick="showView('gm-auth')" class="px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Game Master</button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 flex flex-col justify-center">
+
+    <!-- ==================== 1. PLAYER VIEW ==================== -->
+    <section id="player-view" class="w-full">
+      
+      <!-- Step 1: Code Entry Screen -->
+      <div id="code-entry-card" class="bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-2xl max-w-md mx-auto">
+        <h2 class="text-xl font-bold text-white mb-1">Enter Category Code</h2>
+        <p class="text-xs sm:text-sm text-slate-400 mb-6">Select your team and enter your secret code to log an expense.</p>
+        
+        <div class="space-y-4">
+          <!-- Team Selection -->
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1.5">Your Team</label>
+            <div class="grid grid-cols-2 gap-3">
+              <button type="button" id="team-a-btn" onclick="selectTeam('Team A')" class="py-2.5 rounded-xl border-2 border-cyan-500 text-cyan-400 font-bold bg-cyan-950/40 transition">Team A</button>
+              <button type="button" id="team-b-btn" onclick="selectTeam('Team B')" class="py-2.5 rounded-xl border border-slate-700 text-slate-400 font-bold hover:bg-slate-800 transition">Team B</button>
+            </div>
+          </div>
+
+          <!-- Player Name -->
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1.5">Player / Agent Name</label>
+            <input type="text" id="player-name" placeholder="e.g. Agent Phoenix" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 transition" />
+          </div>
+
+          <!-- Category Code -->
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1.5">Access Code</label>
+            <input type="text" id="category-code" placeholder="e.g. FOOD101" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 uppercase font-mono tracking-widest text-amber-400 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition" />
+          </div>
+
+          <button onclick="verifyCode()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition shadow-lg mt-2">Unlock Category</button>
+          <p id="code-error" class="text-rose-400 text-xs hidden text-center font-semibold pt-1"></p>
+        </div>
+      </div>
+
+      <!-- Step 2: Spending Form (Shown after code verification) -->
+      <div id="spending-card" class="bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-2xl max-w-md mx-auto hidden">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+          <div class="flex items-center gap-2">
+            <span id="badge-team" class="text-xs font-bold px-2.5 py-1 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-700">Team A</span>
+            <span id="badge-category" class="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-950 text-amber-400 border border-amber-700">Category</span>
+          </div>
+          <button onclick="lockCategory()" class="text-xs text-slate-400 hover:text-white underline">Change</button>
+        </div>
+
+        <form onsubmit="submitExpense(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1.5">Item / Action Purchased</label>
+            <input type="text" id="item-title" required placeholder="e.g. Ammo crate, Safehouse key" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 transition" />
+          </div>
+
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1.5">Amount Spent</label>
+            <div class="relative">
+              <span class="absolute left-4 top-2.5 text-slate-500 font-bold">$</span>
+              <input type="number" id="item-cost" min="1" step="any" required placeholder="0.00" class="w-full pl-8 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono focus:outline-none focus:border-amber-400 transition" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1.5">Tactical Note / Justification (Optional)</label>
+            <textarea id="item-notes" rows="2" placeholder="Brief details about the purchase..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"></textarea>
+          </div>
+
+          <button type="submit" id="submit-btn" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl transition shadow-lg">Submit Expense</button>
+          <p id="submit-success" class="text-emerald-400 text-center text-sm font-semibold hidden">Recorded successfully in real-time!</p>
+        </form>
+      </div>
+
+    </section>
+
+    <!-- ==================== 2. GM AUTH VIEW ==================== -->
+    <section id="gm-auth-view" class="hidden w-full">
+      <div class="bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-2xl max-w-sm mx-auto text-center">
+        <h2 class="text-xl font-bold mb-1">Game Master Login</h2>
+        <p class="text-xs text-slate-400 mb-5">Enter PIN to access master command dashboard.</p>
+        <input type="password" id="gm-pin" placeholder="Enter PIN" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-center text-lg tracking-widest text-amber-400 mb-4 focus:outline-none focus:border-amber-400 font-mono transition" />
+        <button onclick="loginGM()" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow transition">Enter Dashboard</button>
+        <p id="gm-auth-error" class="text-rose-400 text-xs mt-3 hidden font-semibold">Invalid PIN. Try: GM999</p>
+      </div>
+    </section>
+
+    <!-- ==================== 3. GM DASHBOARD VIEW ==================== -->
+    <section id="gm-dashboard" class="hidden space-y-6 w-full py-4">
+      
+      <!-- Team Totals Header -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Team A -->
+        <div class="bg-cyan-950/20 border border-cyan-800/80 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+          <div class="flex justify-between items-center mb-1">
+            <h3 class="text-cyan-400 font-black text-lg tracking-wide">TEAM A TOTAL</h3>
+            <span class="text-xs font-bold bg-cyan-900 text-cyan-200 px-2.5 py-0.5 rounded-full" id="count-team-a">0 items</span>
+          </div>
+          <div class="text-4xl font-mono font-black text-white my-2" id="total-team-a">$0</div>
+          <div class="border-t border-cyan-900/60 pt-3 mt-3">
+            <p class="text-[10px] uppercase font-bold text-cyan-400/80 mb-1">Category Breakdown:</p>
+            <div id="breakdown-team-a" class="text-xs space-y-1 text-slate-300"></div>
+          </div>
+        </div>
+
+        <!-- Team B -->
+        <div class="bg-rose-950/20 border border-rose-800/80 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+          <div class="flex justify-between items-center mb-1">
+            <h3 class="text-rose-400 font-black text-lg tracking-wide">TEAM B TOTAL</h3>
+            <span class="text-xs font-bold bg-rose-900 text-rose-200 px-2.5 py-0.5 rounded-full" id="count-team-b">0 items</span>
+          </div>
+          <div class="text-4xl font-mono font-black text-white my-2" id="total-team-b">$0</div>
+          <div class="border-t border-rose-900/60 pt-3 mt-3">
+            <p class="text-[10px] uppercase font-bold text-rose-400/80 mb-1">Category Breakdown:</p>
+            <div id="breakdown-team-b" class="text-xs space-y-1 text-slate-300"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- GM Codes Cheat-sheet -->
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-1">Category Secret Codes</h4>
+          <div class="flex flex-wrap gap-2 text-xs font-mono" id="codes-list"></div>
+        </div>
+        <button onclick="clearAllData()" class="text-xs text-rose-400 hover:text-rose-300 border border-rose-900 hover:border-rose-700 bg-rose-950/30 px-3 py-1.5 rounded-lg whitespace-nowrap self-start sm:self-center transition">
+          Reset Game Data
+        </button>
+      </div>
+
+      <!-- Live Log Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base sm:text-lg font-bold text-white">Live Transactions</h3>
+            <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full">REALTIME</span>
+          </div>
+          <!-- Filter -->
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-slate-400">Filter:</span>
+            <select id="filter-team" onchange="renderLogs()" class="bg-slate-950 border border-slate-700 text-xs rounded-lg px-3 py-1.5 text-white focus:outline-none">
+              <option value="ALL">All Teams</option>
+              <option value="Team A">Team A Only</option>
+              <option value="Team B">Team B Only</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs sm:text-sm">
+            <thead class="text-[11px] uppercase bg-slate-950 text-slate-400 border-b border-slate-800 font-semibold">
+              <tr>
+                <th class="p-3">Time</th>
+                <th class="p-3">Team</th>
+                <th class="p-3">Player</th>
+                <th class="p-3">Category</th>
+                <th class="p-3">Item / Notes</th>
+                <th class="p-3 text-right">Cost</th>
+              </tr>
+            </thead>
+            <tbody id="logs-tbody" class="divide-y divide-slate-800 font-normal">
+              <tr><td colspan="6" class="p-4 text-center text-slate-500">Waiting for first transaction...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ==================== JAVASCRIPT ==================== -->
+  <script>
+    // 1. CATEGORY CODES CONFIGURATION
+    const CATEGORIES = {
+      "FOOD101": { name: "Rations & Food", icon: "🍔" },
+      "GEAR202": { name: "Weapons & Gear", icon: "🛡️" },
+      "INTEL303": { name: "Classified Intel", icon: "📁" },
+      "TRANS404": { name: "Transportation", icon: "🚗" },
+      "SPEC505": { name: "Special Ops", icon: "⚡" }
+    };
+
+    // Game Master PIN
+    const GM_PIN = "GM999";
+
+    // 2. YOUR FIREBASE KEYS (CONFIGURED & ACTIVE)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCitsh2xg-DmXnB0p7nVjZ-7KBJCjPcqLY",
+      authDomain: "game-85294.firebaseapp.com",
+      databaseURL: "https://game-85294-default-rtdb.firebaseio.com",
+      projectId: "game-85294",
+      storageBucket: "game-85294.firebasestorage.app",
+      messagingSenderId: "189960486872",
+      appId: "1:189960486872:web:6c9e51435419b369e63cad",
+      measurementId: "G-D8P761FP1Q"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // App state
+    let currentTeam = "Team A";
+    let activeCategoryName = "";
+    let expensesList = [];
+
+    // Real-time synchronization listener
+    db.ref("expenses").on("value", (snapshot) => {
+      const data = snapshot.val();
+      expensesList = data ? Object.values(data) : [];
+      updateGMData();
+    });
+
+    // Team Selection
+    function selectTeam(team) {
+      currentTeam = team;
+      const btnA = document.getElementById("team-a-btn");
+      const btnB = document.getElementById("team-b-btn");
+
+      if (team === "Team A") {
+        btnA.className = "py-2.5 rounded-xl border-2 border-cyan-500 text-cyan-400 font-bold bg-cyan-950/40 transition";
+        btnB.className = "py-2.5 rounded-xl border border-slate-700 text-slate-400 font-bold hover:bg-slate-800 transition";
+      } else {
+        btnB.className = "py-2.5 rounded-xl border-2 border-rose-500 text-rose-400 font-bold bg-rose-950/40 transition";
+        btnA.className = "py-2.5 rounded-xl border border-slate-700 text-slate-400 font-bold hover:bg-slate-800 transition";
+      }
+    }
+
+    // Verify Access Code
+    function verifyCode() {
+      const codeInput = document.getElementById("category-code").value.trim().toUpperCase();
+      const nameInput = document.getElementById("player-name").value.trim();
+      const err = document.getElementById("code-error");
+
+      if (!nameInput) {
+        err.innerText = "Please enter your Player/Agent name.";
+        err.classList.remove("hidden");
+        return;
+      }
+
+      if (CATEGORIES[codeInput]) {
+        err.classList.add("hidden");
+        activeCategoryName = CATEGORIES[codeInput].name;
+        
+        // Update tags on form
+        const teamBadge = document.getElementById("badge-team");
+        teamBadge.innerText = currentTeam;
+        teamBadge.className = currentTeam === 'Team A' 
+          ? "text-xs font-bold px-2.5 py-1 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-700"
+          : "text-xs font-bold px-2.5 py-1 rounded-full bg-rose-950 text-rose-400 border border-rose-700";
+
+        document.getElementById("badge-category").innerText = CATEGORIES[codeInput].icon + " " + activeCategoryName;
+
+        document.getElementById("code-entry-card").classList.add("hidden");
+        document.getElementById("spending-card").classList.remove("hidden");
+      } else {
+        err.innerText = "Invalid code. Please ask your Game Master.";
+        err.classList.remove("hidden");
+      }
+    }
+
+    function lockCategory() {
+      document.getElementById("spending-card").classList.add("hidden");
+      document.getElementById("code-entry-card").classList.remove("hidden");
+      document.getElementById("category-code").value = "";
+    }
+
+    // Submit Expense to Firebase
+    function submitExpense(e) {
+      e.preventDefault();
+      const playerName = document.getElementById("player-name").value.trim();
+      const itemTitle = document.getElementById("item-title").value.trim();
+      const itemCost = parseFloat(document.getElementById("item-cost").value);
+      const itemNotes = document.getElementById("item-notes").value.trim();
+
+      const expense = {
+        id: Date.now(),
+        team: currentTeam,
+        player: playerName,
+        category: activeCategoryName,
+        title: itemTitle,
+        cost: itemCost,
+        notes: itemNotes,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      // Push to Realtime Database
+      db.ref("expenses").push(expense)
+        .then(() => {
+          document.getElementById("item-title").value = "";
+          document.getElementById("item-cost").value = "";
+          document.getElementById("item-notes").value = "";
+
+          const success = document.getElementById("submit-success");
+          success.classList.remove("hidden");
+          setTimeout(() =>
